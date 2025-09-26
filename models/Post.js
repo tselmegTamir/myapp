@@ -35,14 +35,34 @@ Post.prototype.create = function(){
         }
     });
 }
+
+function getAuthorPipeline() {
+    return [
+        {
+        $lookup: {
+            from: "users",
+            localField: "author",
+            foreignField: "_id",
+            as: "authorDocument",
+        },
+        },
+        {
+        $project: {
+            title: 1,
+            body: 1,
+            createDate: 1,
+            author: { $arrayElemAt: ["$authorDocument", 0] },
+        },
+        },
+    ];
+}
     
 Post.findSinglePostById = function(id){
     return new Promise(async (resolve, reject) => {
         try{
             let posts = await postsCollection.aggregate([
                 {$match: {_id: new ObjectId(id)}},
-                {$lookup: {from: "users", localField: "author", foreignField: "_id", as: "authorDocument"}},
-                {$project: {title: 1, body: 1, createDate: 1, author: {$arrayElemAt: ["$authorDocument", 0]}}},
+                ...getAuthorPipeline(),
             ]).toArray();
 
             if(posts.length){
@@ -62,8 +82,7 @@ Post.findPostsByAuthorId = function(authorId){
             let posts = await postsCollection.aggregate([
                 {$match: {author: new ObjectId(authorId)}},
                 {$sort: {createDate: -1}},
-                {$lookup: {from: "users", localField: "author", foreignField: "_id", as: "authorDocument"}},
-                {$project: {title: 1, body: 1, createDate: 1, author: {$arrayElemAt: ["$authorDocument", 0]}}},
+                ...getAuthorPipeline(),
             ]).toArray();
 
             console.log("POSTS FROM THE DB", posts);
@@ -79,5 +98,29 @@ Post.findPostsByAuthorId = function(authorId){
     });
 }
 
+Post.findOneAndUpdate = function(filter, update){
+    return new Promise(async (resolve, reject) => {
+        try{
+            await postsCollection.updateOne(
+                { _id: new ObjectId(filter._id) },
+                { $set: update }
+            );
+            resolve();
+        } catch(e){
+            reject("DB Update error");
+        }
+    });
+}
+
+Post.deleteOne = function(filter){
+    return new Promise(async (resolve, reject) => {
+        try{
+            await postsCollection.deleteOne({ _id: new ObjectId(filter._id) });
+            resolve();
+        } catch(e){
+            reject("DB Delete error");
+        }
+    });
+}
 
 module.exports = Post;
